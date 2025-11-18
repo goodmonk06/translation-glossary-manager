@@ -2,125 +2,277 @@
 
 A centralized translation and glossary management system built with Next.js, TypeScript, Prisma, and PostgreSQL. This system allows you to manage translatable strings and glossary terms across multiple projects, and provides APIs and SDKs for easy integration into your applications.
 
-## Features
+**Status**: Phase 2 - Production-ready with end-to-end vertical slice, Docker support, comprehensive tests, and seed data.
 
-- **Multi-Project Support**: Manage translations and glossaries for multiple projects
-- **Locale String Management**: Store and manage translatable strings with keys, values, and descriptions
-- **Glossary Management**: Define glossary terms with source/target locales and notes
-- **Public APIs**: RESTful endpoints for exporting translations and glossary terms
-- **JavaScript SDK**: Simple client library for integrating translations into your apps
-- **Admin UI**: Web interface for managing projects, strings, and glossary terms
-- **TypeScript**: Full type safety throughout the application
+## Overview
+
+This repository serves as a **reusable building block** for managing translations across your entire ecosystem. It provides:
+
+- **Centralized Translation Management**: Single source of truth for all translatable strings
+- **Multi-Project Architecture**: Manage translations for web apps, mobile apps, and marketing sites in one place
+- **Public APIs**: Export translations and glossary terms via simple REST endpoints
+- **Type-Safe SDK**: JavaScript/TypeScript client for seamless integration
+- **Admin UI**: Beautiful, responsive interface for managing content
+- **Developer Experience**: Docker, testing, seeding, and standardized scripts
 
 ## Tech Stack
 
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL 16
 - **ORM**: Prisma
 - **Styling**: Tailwind CSS
 - **Validation**: Zod
+- **Testing**: Vitest
+- **Containerization**: Docker & Docker Compose
+
+## Domain Model
+
+### Core Entities
+
+**Project**
+- Represents a distinct application or project (e.g., "My Web App", "Mobile App")
+- Has a unique slug for API access
+- Defines a default locale
+
+**LocaleString**
+- A translatable string with a key, locale, and value
+- Belongs to a project
+- Unique constraint on (project, key, locale)
+- Example: `key: "app.welcome"`, `locale: "ja-JP"`, `value: "ようこそ"`
+
+**GlossaryTerm**
+- Translation glossary entry for consistency
+- Maps source term to target term across locales
+- Includes notes and tags for translators
+- Example: `dashboard` (en-US) → `ダッシュボード` (ja-JP)
+
+### Relationships
+
+```
+Project (1) ─── (N) LocaleString
+        └─── (N) GlossaryTerm
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ and npm/yarn
-- PostgreSQL database
+- **Node.js** 18+ and npm
+- **Docker** and Docker Compose (recommended)
+- **PostgreSQL** 16+ (if running locally without Docker)
 
-### Installation
+### Quick Start with Docker (Recommended)
 
-1. Clone the repository:
+1. **Clone and setup**:
 ```bash
-git clone https://github.com/yourusername/translation-glossary-manager.git
+git clone <your-repo-url>
 cd translation-glossary-manager
+cp .env.example .env
 ```
 
-2. Install dependencies:
+2. **Start everything**:
+```bash
+docker compose up -d
+```
+
+This will:
+- Start PostgreSQL database
+- Run database migrations
+- Start the Next.js app on http://localhost:3000
+
+3. **Seed demo data**:
+```bash
+docker compose exec app npm run db:seed
+```
+
+4. **Access the application**:
+- **Web UI**: http://localhost:3000
+- **Projects**: http://localhost:3000/projects
+
+### Local Development (Without Docker)
+
+1. **Install dependencies**:
 ```bash
 npm install
 ```
 
-3. Set up your database:
+2. **Setup database**:
 ```bash
-# Copy the example env file
+# Copy environment file
 cp .env.example .env
 
-# Edit .env and add your PostgreSQL connection string
-# DATABASE_URL="postgresql://user:password@localhost:5432/translation_glossary?schema=public"
-```
+# Edit .env and set your DATABASE_URL
+# DATABASE_URL="postgresql://postgres:postgres@localhost:5432/translation_glossary?schema=public"
 
-4. Initialize the database:
-```bash
+# Push schema to database
 npm run db:push
-# or for migrations:
+
+# Or run migrations
 npm run db:migrate
 ```
 
-5. Start the development server:
+3. **Seed demo data**:
+```bash
+npm run db:seed
+```
+
+4. **Start development server**:
 ```bash
 npm run dev
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000) in your browser
+5. **Open http://localhost:3000**
 
-## Database Schema
+### Development with Docker (Hot Reload)
 
-### Project
-- `id`: Unique identifier
-- `name`: Project name
-- `slug`: URL-friendly identifier
-- `defaultLocale`: Default locale for the project (e.g., "en-US")
+```bash
+docker compose --profile dev up
+```
 
-### LocaleString
-- `id`: Unique identifier
-- `projectId`: Reference to project
-- `key`: Translation key (e.g., "app.welcome")
-- `locale`: Locale code (e.g., "en-US", "ja-JP")
-- `value`: Translated text
-- `description`: Optional description/context
-- `updatedAt`: Last update timestamp
+This starts the app with volume mounts for hot reload during development.
 
-### GlossaryTerm
-- `id`: Unique identifier
-- `projectId`: Reference to project
-- `sourceTerm`: Term in source language
-- `sourceLocale`: Source locale
-- `targetTerm`: Term in target language
-- `targetLocale`: Target locale
-- `notes`: Optional notes
-- `tagsJson`: Optional tags in JSON format
+## Example End-to-End Flow
+
+### Vertical Slice: Project → Strings → API → SDK
+
+This implementation includes a complete working vertical slice:
+
+#### 1. Create a Project
+
+Via UI:
+- Go to http://localhost:3000/projects
+- Click "New Project"
+- Enter name: `My Web App`, slug: `my-web-app`, default locale: `en-US`
+
+Via API:
+```bash
+curl -X POST http://localhost:3000/api/projects \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Web App",
+    "slug": "my-web-app",
+    "defaultLocale": "en-US"
+  }'
+```
+
+#### 2. Add Translation Strings
+
+Via UI:
+- Navigate to `/projects/{id}/strings`
+- Click "New String"
+- Add strings:
+  - Key: `app.welcome`, Locale: `en-US`, Value: `Welcome!`
+  - Key: `app.welcome`, Locale: `ja-JP`, Value: `ようこそ！`
+
+Via API:
+```bash
+curl -X POST http://localhost:3000/api/strings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "...",
+    "key": "app.welcome",
+    "locale": "ja-JP",
+    "value": "ようこそ！"
+  }'
+```
+
+#### 3. Export Translations
+
+Fetch all Japanese translations for the project:
+```bash
+curl http://localhost:3000/api/export/my-web-app?locale=ja-JP
+```
+
+Response:
+```json
+{
+  "app.welcome": "ようこそ！",
+  "app.login": "ログイン",
+  "nav.dashboard": "ダッシュボード"
+}
+```
+
+#### 4. Use in Your App (SDK)
+
+```typescript
+import { createTranslationClient } from './sdk/client'
+
+const translator = createTranslationClient({
+  baseUrl: 'http://localhost:3000',
+  projectSlug: 'my-web-app',
+  locale: 'ja-JP',
+})
+
+await translator.load()
+
+console.log(translator.t('app.welcome'))  // "ようこそ！"
+console.log(translator.t('app.login'))    // "ログイン"
+```
+
+## Available Scripts
+
+### Development
+```bash
+npm run dev           # Start dev server (localhost:3000)
+npm run build         # Build for production
+npm start             # Start production server
+npm run lint          # Run ESLint
+```
+
+### Testing
+```bash
+npm test              # Run tests with Vitest
+npm run test:ui       # Run tests with UI
+npm run test:coverage # Generate coverage report
+```
+
+### Database
+```bash
+npm run db:generate   # Generate Prisma client
+npm run db:push       # Push schema to DB (dev)
+npm run db:migrate    # Create and run migrations
+npm run db:seed       # Populate with demo data
+npm run db:studio     # Open Prisma Studio
+npm run db:reset      # Reset database (caution!)
+```
+
+### Docker
+```bash
+npm run docker:up     # Start containers
+npm run docker:down   # Stop containers
+npm run docker:logs   # View logs
+```
+
+### Quick Setup
+```bash
+npm run setup         # Install + push schema + seed
+```
 
 ## API Reference
 
 ### Admin Endpoints (CRUD)
 
 #### Projects
-```bash
-GET    /api/projects           # List all projects
-POST   /api/projects           # Create a project
-GET    /api/projects/:id       # Get a project
-PATCH  /api/projects/:id       # Update a project
-DELETE /api/projects/:id       # Delete a project
-```
+- `GET /api/projects` - List all projects
+- `POST /api/projects` - Create project
+- `GET /api/projects/:id` - Get project
+- `PATCH /api/projects/:id` - Update project
+- `DELETE /api/projects/:id` - Delete project
 
-#### Locale Strings
-```bash
-GET    /api/strings?projectId=xxx&locale=en-US  # List strings
-POST   /api/strings            # Create a string
-GET    /api/strings/:id        # Get a string
-PATCH  /api/strings/:id        # Update a string
-DELETE /api/strings/:id        # Delete a string
-```
+#### Strings
+- `GET /api/strings?projectId=xxx&locale=en-US` - List strings
+- `POST /api/strings` - Create string
+- `GET /api/strings/:id` - Get string
+- `PATCH /api/strings/:id` - Update string
+- `DELETE /api/strings/:id` - Delete string
 
 #### Glossary Terms
-```bash
-GET    /api/glossary-terms?projectId=xxx  # List terms
-POST   /api/glossary-terms     # Create a term
-GET    /api/glossary-terms/:id # Get a term
-PATCH  /api/glossary-terms/:id # Update a term
-DELETE /api/glossary-terms/:id # Delete a term
-```
+- `GET /api/glossary-terms?projectId=xxx` - List terms
+- `POST /api/glossary-terms` - Create term
+- `GET /api/glossary-terms/:id` - Get term
+- `PATCH /api/glossary-terms/:id` - Update term
+- `DELETE /api/glossary-terms/:id` - Delete term
 
 ### Public Endpoints
 
@@ -129,12 +281,11 @@ DELETE /api/glossary-terms/:id # Delete a term
 GET /api/export/:projectSlug?locale=ja-JP
 ```
 
-Returns a JSON object with key-value pairs:
+Returns:
 ```json
 {
   "app.welcome": "ようこそ",
-  "app.login": "ログイン",
-  "app.logout": "ログアウト"
+  "app.login": "ログイン"
 }
 ```
 
@@ -143,16 +294,15 @@ Returns a JSON object with key-value pairs:
 GET /api/glossary/:projectSlug?sourceLocale=en-US&targetLocale=ja-JP
 ```
 
-Returns an array of glossary terms:
+Returns:
 ```json
 [
   {
-    "id": "...",
     "sourceTerm": "dashboard",
     "sourceLocale": "en-US",
     "targetTerm": "ダッシュボード",
     "targetLocale": "ja-JP",
-    "notes": "Use this term consistently",
+    "notes": "Use katakana consistently",
     "tags": ["ui", "navigation"]
   }
 ]
@@ -160,244 +310,188 @@ Returns an array of glossary terms:
 
 ## SDK Usage
 
-### Installation in Your Project
+### Installation
 
-Copy the SDK client to your project:
+Copy the SDK to your project:
 ```bash
-# From this repo
 cp sdk/client.ts your-project/lib/translation-client.ts
 ```
 
 ### Basic Usage
 
 ```typescript
-import { createTranslationClient } from './lib/translation-client'
-
-// Initialize the client
-const translator = createTranslationClient({
-  baseUrl: 'https://your-translation-service.com',
-  projectSlug: 'my-app',
-  locale: 'ja-JP',
-  cache: true, // Cache translations in memory
-})
-
-// Load translations
-await translator.load()
-
-// Use translations
-const welcomeText = translator.t('app.welcome')
-// Returns: "ようこそ"
-
-// With fallback
-const text = translator.t('missing.key', 'Default text')
-// Returns: "Default text"
-
-// With interpolation
-const greeting = translator.t_interpolate('hello_name', { name: 'John' })
-// If translation is "Hello, {name}!" returns: "Hello, John!"
-
-// Check if a key exists
-if (translator.has('app.welcome')) {
-  // Key exists
-}
-
-// Get all translations
-const allTranslations = translator.getAll()
-```
-
-### Next.js Integration Example
-
-Create a translation provider:
-
-```typescript
-// app/providers/translation-provider.tsx
-'use client'
-
-import { createContext, useContext, useEffect, useState } from 'react'
-import { createTranslationClient, TranslationClient } from '@/lib/translation-client'
-
-const TranslationContext = createContext<TranslationClient | null>(null)
-
-export function TranslationProvider({
-  children,
-  locale = 'en-US'
-}: {
-  children: React.ReactNode
-  locale?: string
-}) {
-  const [client] = useState(() =>
-    createTranslationClient({
-      baseUrl: process.env.NEXT_PUBLIC_TRANSLATION_URL || '',
-      projectSlug: process.env.NEXT_PUBLIC_PROJECT_SLUG || '',
-      locale,
-    })
-  )
-
-  useEffect(() => {
-    client.load()
-  }, [client])
-
-  return (
-    <TranslationContext.Provider value={client}>
-      {children}
-    </TranslationContext.Provider>
-  )
-}
-
-export function useTranslation() {
-  const client = useContext(TranslationContext)
-  if (!client) {
-    throw new Error('useTranslation must be used within TranslationProvider')
-  }
-  return client
-}
-```
-
-Use in your components:
-
-```typescript
-// app/page.tsx
-'use client'
-
-import { useTranslation } from './providers/translation-provider'
-
-export default function HomePage() {
-  const t = useTranslation()
-
-  return (
-    <div>
-      <h1>{t.t('app.welcome')}</h1>
-      <p>{t.t('app.description')}</p>
-    </div>
-  )
-}
-```
-
-### Server-Side Usage
-
-```typescript
-// app/page.tsx (Server Component)
 import { createTranslationClient } from '@/lib/translation-client'
 
-export default async function HomePage() {
-  const translator = createTranslationClient({
-    baseUrl: process.env.TRANSLATION_URL!,
-    projectSlug: 'my-app',
-    locale: 'ja-JP',
-  })
+const translator = createTranslationClient({
+  baseUrl: process.env.TRANSLATION_API_URL!,
+  projectSlug: 'my-web-app',
+  locale: 'ja-JP',
+})
 
-  await translator.load()
+await translator.load()
 
-  return (
-    <div>
-      <h1>{translator.t('app.welcome')}</h1>
-    </div>
-  )
-}
+// Simple translation
+translator.t('app.welcome')  // "ようこそ"
+
+// With fallback
+translator.t('missing.key', 'Default')  // "Default"
+
+// With interpolation
+translator.t_interpolate('hello_user', { name: 'Alice' })
+// If translation is "こんにちは、{name}さん" → "こんにちは、Aliceさん"
 ```
 
-## Shared Translation Backend
+### Next.js Integration
 
-One of the key benefits of this system is that **multiple applications can share the same translation backend**. This means:
+See the [SDK Usage section in the original README](./README.md#sdk-usage) for React Context and Server Component examples.
 
-1. **Single Source of Truth**: All your applications pull translations from one centralized location
-2. **Consistent Terminology**: Use the glossary feature to ensure consistent translations across all apps
-3. **Easy Updates**: Update a translation once, and all apps get the update
-4. **Multi-Tenant**: Each app can have its own project with its own strings and glossary
+## Demo Data
 
-### Example: Using Across Multiple Repos
+After running `npm run db:seed`, you'll have:
 
-```
-translation-glossary-manager (this repo)
-├── Hosts the translation service
-└── Public API at https://translations.yourcompany.com
+**Projects**:
+1. **My Web App** (`my-web-app`) - 45+ strings in EN/JA/ES
+2. **Mobile App** (`mobile-app`) - Mobile-specific strings
+3. **Marketing Website** (`marketing-site`) - Empty starter
 
-your-web-app (separate repo)
-├── Uses SDK to fetch translations
-└── Project slug: "web-app"
+**Demo Credentials**: None required (open access for now)
 
-your-mobile-app (separate repo)
-├── Uses SDK to fetch translations
-└── Project slug: "mobile-app"
+**Demo URLs**:
+- Web App Strings: http://localhost:3000/projects/{id}/strings
+- Export EN: http://localhost:3000/api/export/my-web-app?locale=en-US
+- Export JA: http://localhost:3000/api/export/my-web-app?locale=ja-JP
+- Glossary: http://localhost:3000/api/glossary/my-web-app
 
-your-admin-dashboard (separate repo)
-├── Uses SDK to fetch translations
-└── Project slug: "admin-dashboard"
-```
+## Testing
 
-All three apps can:
-- Share common translations (e.g., "login", "logout")
-- Have app-specific translations
-- Reference the same glossary for consistency
+Tests are written with Vitest and cover:
+- API response utilities
+- Error handling classes
+- SDK client functionality
 
-## UI Pages
-
-- `/` - Home page
-- `/projects` - List all projects, create new projects
-- `/projects/[id]/strings` - Manage locale strings with inline editing
-- `/projects/[id]/glossary` - Manage glossary terms
-
-## Development
-
-### Database Commands
-
+Run tests:
 ```bash
-# Generate Prisma client
-npm run db:generate
-
-# Push schema to database (development)
-npm run db:push
-
-# Create and run migrations (production)
-npm run db:migrate
-
-# Open Prisma Studio (database GUI)
-npm run db:studio
+npm test
 ```
 
-### Project Structure
+View coverage:
+```bash
+npm run test:coverage
+```
+
+## Project Structure
 
 ```
 translation-glossary-manager/
 ├── app/
-│   ├── api/                 # API route handlers
-│   │   ├── export/          # Public export endpoint
-│   │   ├── glossary/        # Public glossary endpoint
-│   │   ├── glossary-terms/  # Admin CRUD for glossary
-│   │   ├── projects/        # Admin CRUD for projects
-│   │   └── strings/         # Admin CRUD for strings
-│   ├── projects/            # UI pages
-│   │   └── [id]/
-│   │       ├── strings/     # String management page
-│   │       └── glossary/    # Glossary management page
+│   ├── api/              # API routes
+│   │   ├── export/       # Public export endpoint
+│   │   ├── glossary/     # Public glossary endpoint
+│   │   ├── projects/     # CRUD for projects
+│   │   ├── strings/      # CRUD for strings
+│   │   └── glossary-terms/ # CRUD for terms
+│   ├── projects/         # UI pages
 │   ├── layout.tsx
 │   └── page.tsx
 ├── lib/
-│   └── prisma.ts            # Prisma client singleton
+│   ├── prisma.ts         # Prisma client
+│   ├── api-response.ts   # Centralized API responses
+│   ├── api-handler.ts    # Error handling wrapper
+│   └── errors.ts         # Custom error classes
 ├── prisma/
-│   └── schema.prisma        # Database schema
+│   ├── schema.prisma     # Database schema
+│   └── seed.ts           # Seed script
 ├── sdk/
-│   └── client.ts            # Translation SDK
+│   └── client.ts         # Translation SDK
+├── tests/                # Vitest tests
+├── docker-compose.yml    # Docker orchestration
+├── Dockerfile            # Production container
 └── README.md
 ```
 
-## Future Enhancements
+## Deployment
 
-- [ ] Authentication and authorization
-- [ ] Role-based access control (Admin, Translator, Viewer)
-- [ ] Translation workflow (draft, review, approved)
-- [ ] Import/export (CSV, JSON, XLIFF)
-- [ ] Search and filtering
-- [ ] Translation memory
-- [ ] Machine translation integration
-- [ ] Webhook notifications
-- [ ] Version history
-- [ ] Comments and collaboration
+### Environment Variables
+
+Required:
+```bash
+DATABASE_URL="postgresql://user:pass@host:5432/db?schema=public"
+NODE_ENV="production"
+```
+
+### Docker Production
+
+```bash
+docker compose up -d
+```
+
+### Platform Deployment (Vercel, Railway, etc.)
+
+1. Set `DATABASE_URL` in platform environment
+2. Connect repository
+3. Add build command: `npm run build`
+4. Add start command: `npm start`
+5. Run migrations: `npm run db:migrate:deploy`
+
+## Future Extensions
+
+- [ ] **Authentication & Authorization**: Protect admin endpoints, add API keys
+- [ ] **Role-Based Access**: Admin, Translator, Viewer roles
+- [ ] **Translation Workflow**: Draft → Review → Approved states
+- [ ] **Import/Export**: CSV, JSON, XLIFF format support
+- [ ] **Search & Filtering**: Full-text search across strings
+- [ ] **Translation Memory**: Suggest similar translations
+- [ ] **Machine Translation**: Integrate DeepL, Google Translate
+- [ ] **Webhooks**: Notify on translation updates
+- [ ] **Version History**: Track changes over time
+- [ ] **Collaboration**: Comments, suggestions, discussion threads
+- [ ] **Analytics**: Track translation coverage, usage stats
+- [ ] **CDN Integration**: Edge caching for exports
+
+## Shared Across Repositories
+
+One of the core benefits: **Multiple applications can share this translation backend**.
+
+Example:
+```
+translation-glossary-manager (this repo)
+├── Hosts centralized service
+└── Public API at https://translations.yourcompany.com
+
+your-web-app (separate repo)
+├── Project: "web-app"
+└── Uses SDK to fetch translations
+
+your-mobile-app (separate repo)
+├── Project: "mobile-app"
+└── Uses SDK to fetch translations
+
+your-marketing-site (separate repo)
+├── Project: "marketing-site"
+└── Uses SDK to fetch translations
+```
+
+All apps pull from one source, ensuring consistency and easy updates.
+
+## Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Submit a pull request
 
 ## License
 
 MIT
 
-## Contributing
+---
 
-Contributions are welcome! Please open an issue or submit a pull request.
+**Phase 2 Complete** ✅
+- ✅ End-to-end vertical slice (Project → Strings → API → SDK)
+- ✅ Standardized DX scripts (dev, build, test, seed, docker)
+- ✅ Centralized error handling and validation
+- ✅ Docker support with docker-compose
+- ✅ Comprehensive tests with Vitest
+- ✅ Realistic seed data
+- ✅ Production-ready documentation
