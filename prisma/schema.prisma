@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  defaultLocale String          @default("en-US")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  localeStrings LocaleString[]
+  glossaryTerms GlossaryTerm[]
+
+  @@map("projects")
+}
+
+model LocaleString {
+  id          String   @id @default(cuid())
+  projectId   String
+  key         String
+  locale      String
+  value       String   @db.Text
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key, locale])
+  @@index([projectId, locale])
+  @@map("locale_strings")
+}
+
+model GlossaryTerm {
+  id           String   @id @default(cuid())
+  projectId    String
+  sourceTerm   String
+  sourceLocale String
+  targetLocale String
+  targetTerm   String
+  notes        String?  @db.Text
+  tagsJson     String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sourceLocale, targetLocale])
+  @@map("glossary_terms")
+}
