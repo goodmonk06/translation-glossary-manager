@@ -10,34 +10,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TranslationStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+enum ProjectMemberRole {
+  OWNER
+  ADMIN
+  TRANSLATOR
+  REVIEWER
+  VIEWER
+}
+
 model Project {
   id            String          @id @default(cuid())
   name          String
   slug          String          @unique
   defaultLocale String          @default("en-US")
+  description   String?         @db.Text
+  isPublic      Boolean         @default(false)
+  settings      String?         @db.Text // JSON for project-specific config
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
   localeStrings LocaleString[]
   glossaryTerms GlossaryTerm[]
+  members       ProjectMember[]
+  exportConfigs ExportConfig[]
 
   @@map("projects")
 }
 
 model LocaleString {
-  id          String   @id @default(cuid())
-  projectId   String
-  key         String
-  locale      String
-  value       String   @db.Text
-  description String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String            @id @default(cuid())
+  projectId        String
+  key              String
+  locale           String
+  value            String            @db.Text
+  description      String?           @db.Text
+  status           TranslationStatus @default(DRAFT)
+  lastReviewedAt   DateTime?
+  lastReviewedBy   String?
+  characterCount   Int               @default(0)
+  wordCount        Int               @default(0)
+  metadata         String?           @db.Text // JSON for additional context
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project          Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  history          TranslationHistory[]
 
   @@unique([projectId, key, locale])
   @@index([projectId, locale])
+  @@index([projectId, status])
   @@map("locale_strings")
 }
 
@@ -49,12 +77,80 @@ model GlossaryTerm {
   targetLocale String
   targetTerm   String
   notes        String?  @db.Text
+  context      String?  @db.Text // Usage context for translators
+  examples     String?  @db.Text // JSON array of example sentences
   tagsJson     String?  @db.Text
+  isVerified   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, sourceLocale, targetLocale])
+  @@index([projectId, isVerified])
   @@map("glossary_terms")
+}
+
+model TranslationHistory {
+  id             String       @id @default(cuid())
+  localeStringId String
+  projectId      String
+  key            String
+  locale         String
+  oldValue       String?      @db.Text
+  newValue       String       @db.Text
+  oldStatus      TranslationStatus?
+  newStatus      TranslationStatus?
+  changedBy      String? // User ID or identifier
+  changeType     String // CREATED, UPDATED, DELETED, STATUS_CHANGED
+  metadata       String?      @db.Text // JSON for additional context
+  createdAt      DateTime     @default(now())
+
+  localeString   LocaleString @relation(fields: [localeStringId], references: [id], onDelete: Cascade)
+
+  @@index([localeStringId])
+  @@index([projectId, createdAt])
+  @@index([changedBy])
+  @@map("translation_history")
+}
+
+model ProjectMember {
+  id         String            @id @default(cuid())
+  projectId  String
+  userId     String // External user ID (from auth system)
+  email      String
+  role       ProjectMemberRole @default(VIEWER)
+  invitedBy  String?
+  joinedAt   DateTime          @default(now())
+  lastActive DateTime?
+  metadata   String?           @db.Text // JSON for additional info
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId, role])
+  @@map("project_members")
+}
+
+model ExportConfig {
+  id            String   @id @default(cuid())
+  projectId     String
+  name          String
+  description   String?  @db.Text
+  format        String   @default("JSON") // JSON, CSV, XLIFF, YAML, etc.
+  filters       String?  @db.Text // JSON filter configuration
+  transforms    String?  @db.Text // JSON transform configuration
+  outputOptions String?  @db.Text // JSON output options (pretty print, compression, etc.)
+  isActive      Boolean  @default(true)
+  createdBy     String?
+  lastUsedAt    DateTime?
+  useCount      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, isActive])
+  @@map("export_configs")
 }
